@@ -8,13 +8,13 @@
     logs-url: "https://seecloud.mirantis.com/rci/logs/"
 
 - service:
-    module: rallyci.services.github
+    module: rci.services.github
     name: gh
     data-path: /rci/store/rci/github/data
 
 - provider:
     name: os
-    module: rallyci.providers.openstack
+    module: rci.providers.openstack
     max_vms: 64
     ssh:
       default_username: centos
@@ -56,16 +56,15 @@
           flavor: rci-2vcpu-4096ram-20disk
           interfaces:
             - ["dynamic", "testcluster-int-net"]
-        pr4:
-          image: centos-iso-base.qcow
-          flavor: rci-2vcpu-4096ram-20disk
-          interfaces:
-            - ["dynamic", "testcluster-int-net"]
-        pr5:
-          image: centos-iso-base.qcow
-          flavor: rci-2vcpu-4096ram-20disk
-          interfaces:
-            - ["dynamic", "testcluster-int-net"]
+
+- script:
+    name: install-docker-centos
+    data: |
+      sudo sh -xs <<EOF
+      yum -y install docker python-netaddr
+      service docker start
+      chown centos /var/run/docker.sock
+      EOF
 
 - script:
     name: init
@@ -122,6 +121,8 @@
       cd $GITHUB_REPO
       ../../packer build -only qemu centos7.json
       ls -lha /tmp/
+      qemu-img create -f qcow2 centos-vda.qcow2 8G
+      # qemu-system-x86_64 -boot d -cdrom centos-image.iso -m 512 -display vnc=0.0.0.0:1 -hda centos-vda.qcow2 -no-reboot
 
 - script:
     name: copy-ssh-key-to-slaves
@@ -198,8 +199,10 @@
     name: run-automation
     data: |
       cd $GITHUB_REPO
-      ansible -i inventory -m ping all
-      ansible-playbook -i inventory init_runner.yml
+      utils/inventory-generator --nodes pr1 pr2 pr3
+      ansible -i inventory/inventory.cfg -m ping all
+      ansible-playbook -i inventory/bootstrap.cfg bootstrap-runner.yml
+      ansible-playbook -i inventory/inventory.cfg automation-runner.yml
 
 - job:
     name: test-automation
@@ -211,6 +214,7 @@
         - eth1-up
         - add-all-servers-to-etc-hosts
         - copy-ssh-key-to-slaves
+        - install-docker-centos
         - run-automation
 
 - job:
