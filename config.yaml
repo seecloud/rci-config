@@ -122,7 +122,8 @@
       ../../packer build -only qemu centos7.json
       ls -lha /tmp/
       qemu-img create -f qcow2 centos-vda.qcow2 8G
-      # qemu-system-x86_64 -boot d -cdrom centos-image.iso -m 512 -display vnc=0.0.0.0:1 -hda centos-vda.qcow2 -no-reboot
+      time qemu-system-x86_64 -boot d -cdrom centos-image.iso -m 512 -display vnc=0.0.0.0:1 -no-reboot -drive file=centos-vda.qcow2,if=virtio,cache=unsafe,discard=on
+      #time qemu-system-x86_64 -boot c -drive file=centos-vda.qcow2,if=virtio,cache=unsafe,discard=on -display vnc=0.0.0.0:1
 
 - script:
     name: copy-ssh-key-to-slaves
