@@ -181,7 +181,12 @@
       EOF
       sudo mv /tmp/.iu /etc/sysconfig/network-scripts/ifcfg-eth1
       fi
+      # PEERDNS="no" is't working, so this little trick is needed to save dns
+      sudo cp /etc/resolv.conf /tmp/rc
       sudo ifup eth1
+      sleep 10
+      sudo cp /tmp/rc /etc/resolv.conf
+      ping -c 3 gnu.org
 
 - script:
     name: add-all-servers-to-etc-hosts
@@ -211,10 +216,10 @@
     scripts:
       master:
         - git-checkout
+        - install-docker-centos
         - eth1-up
         - add-all-servers-to-etc-hosts
         - copy-ssh-key-to-slaves
-        - install-docker-centos
         - run-automation
 
 - job:
@@ -231,7 +236,7 @@
     projects:
       - seecloud/automation
       - r-ci/automation
-    jobs-cr:
+    cr:
       - test-automation
 
 - matrix:
@@ -239,5 +244,5 @@
     projects:
       - r-ci/os-image-builder
       - seecloud/os-image-builder
-    jobs-cr:
+    cr:
       - test-os-image-builder
