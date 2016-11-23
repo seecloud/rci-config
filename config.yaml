@@ -25,12 +25,14 @@
       os-image-builder:
         vm:
           image: rci-u1404
+          username: ubuntu
           flavor: m1.small
           interfaces:
             - ["static", "rci-int-net"]
       single_ubuntu:
         ubuntu:
           image: rci-u1404
+          username: ubuntu
           flavor: rci-1vcpu-1024ram
           interfaces:
             - ["static", "rci-int-net"]
