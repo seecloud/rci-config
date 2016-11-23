@@ -24,18 +24,14 @@
     clusters:
       os-image-builder:
         vm:
-          image: rci-u1404
+          image: ubuntu-os-image-builder
           username: ubuntu
           flavor: m1.small
           interfaces:
             - ["static", "rci-int-net"]
-      single_ubuntu:
-        ubuntu:
-          image: rci-u1404
-          username: ubuntu
-          flavor: rci-1vcpu-1024ram
-          interfaces:
-            - ["static", "rci-int-net"]
+          user_data: |
+            #cloud-config
+            disable_root: false
       seecloud_cluster:
         master:
           image: centos-7-1608-ansible
@@ -44,20 +40,30 @@
             - ["static", "rci-int-net"]
             - ["dynamic", "testcluster-int-net"]
         pr1:
-          image: centos-iso-base.qcow
+          image: seecloud-centos
           flavor: rci-2vcpu-4096ram-20disk
           interfaces:
             - ["dynamic", "testcluster-int-net"]
         pr2:
-          image: centos-iso-base.qcow
+          image: seecloud-centos
           flavor: rci-2vcpu-4096ram-20disk
           interfaces:
             - ["dynamic", "testcluster-int-net"]
         pr3:
-          image: centos-iso-base.qcow
+          image: seecloud-centos
           flavor: rci-2vcpu-4096ram-20disk
           interfaces:
             - ["dynamic", "testcluster-int-net"]
+
+- script:
+    name: build-os-image-builder
+    user: root
+    data: |
+      apt-get -y update && apt-get -y upgrade && apt-get -y install git vim qemu rng-tools gnupg unzip
+      wget https://releases.hashicorp.com/packer/0.11.0/packer_0.11.0_linux_amd64.zip -O /tmp/packer.zip 2> /dev/null
+      cd /tmp/ && unzip packer.zip
+      mv packer /usr/local/bin/
+      wget http://buildlogs.centos.org/rolling/7/isos/x86_64/CentOS-7-x86_64-Minimal-1511.iso -O /var/CentOS-7-x86_64-Minimal-1511.iso 2> /dev/null
 
 - script:
     name: install-docker-centos
@@ -85,7 +91,6 @@
 - script:
     name: git-checkout
     data: |
-      git help -g || sudo apt-get -y install git
       mkdir -p $GITHUB_REPO
       cd $GITHUB_REPO
       cd ..
@@ -98,9 +103,6 @@
 - script:
     name: build-os-image
     data: |
-      env
-      sudo apt-get -y install git rng-tools gnupg unzip qemu
-      sudo chgrp sudo /dev/kvm
       sudo rngd -r /dev/urandom
       cat > keygen <<EOF
       Key-Type: RSA
@@ -117,11 +119,10 @@
       EOF
       gpg --batch --gen-key keygen
       mv .gnupg /tmp/
-      wget https://releases.hashicorp.com/packer/0.11.0/packer_0.11.0_linux_amd64.zip
-      unzip packer_0.11.0_linux_amd64.zip
-      wget http://buildlogs.centos.org/rolling/7/isos/x86_64/CentOS-7-x86_64-Minimal-1511.iso -O /tmp/CentOS-7-x86_64-Minimal-1511.iso
+      sudo chgrp sudo /dev/kvm
+      sudo mv /var/CentOS-7-x86_64-Minimal-1511.iso /tmp/
       cd $GITHUB_REPO
-      ../../packer build -only qemu centos7.json
+      PACKER_LOG=1 packer build -only qemu centos7.json
       ls -lha /tmp/
       qemu-img create -f qcow2 centos-vda.qcow2 8G
       time qemu-system-x86_64 -boot d -cdrom centos-image.iso -m 512 -display vnc=0.0.0.0:1 -no-reboot -drive file=centos-vda.qcow2,if=virtio,cache=unsafe,discard=on
@@ -129,22 +130,22 @@
 
 - script:
     name: copy-ssh-key-to-slaves
+    interpreter: /bin/bash -x
     data: |
+        /usr/sbin/ip -r
         ssh-keygen -t rsa -N "" -f .ssh/id_rsa
         PUBLIC_KEY=$(cat .ssh/id_rsa.pub)
         cat > /tmp/.node-setup.sh << EOF
-        sudo mkdir /root/.ssh || true
-        echo $PUBLIC_KEY > /tmp/.pk
-        sudo mv /tmp/.pk /root/.ssh/authorized_keys
-        sudo chown root:root /root/.ssh/authorized_keys
-        sudo chmod 600 /root/.ssh/authorized_keys
+        mkdir /root/.ssh || true
+        echo $PUBLIC_KEY >> /root/.ssh/authorized_keys
+        chmod 600 /root/.ssh/authorized_keys
         EOF
         upload_key () {
         n=0
         until [ $n -ge 60 ]
         do
          n=$[$n+1]
-         sshpass -p mirantis ssh -o StrictHostKeyChecking=no mirantis@${!SRV} sh -xs < /tmp/.node-setup.sh
+         sshpass -p mirantis ssh -o StrictHostKeyChecking=no root@${!SRV} sh -xs < /tmp/.node-setup.sh
          SVNAME=$(echo $SRV | sed 's/^RCI_SERVER_\([[:alnum:]]\+\).*/\1/')
          ssh -o StrictHostKeyChecking=no root@$SVNAME id
          if [ $? -eq 0 ]
