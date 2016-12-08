@@ -34,23 +34,23 @@
             disable_root: false
       seecloud_cluster:
         master:
-          image: centos-7-1608-ansible
-          flavor: m1.medium
+          image: centos-from-iso
+          flavor: rci-1vcpu-1024ram
           interfaces:
             - ["static", "rci-int-net"]
             - ["dynamic", "testcluster-int-net"]
         pr1:
-          image: seecloud-centos
+          image: centos-from-iso
           flavor: rci-2vcpu-4096ram-20disk
           interfaces:
             - ["dynamic", "testcluster-int-net"]
         pr2:
-          image: seecloud-centos
+          image: centos-from-iso
           flavor: rci-2vcpu-4096ram-20disk
           interfaces:
             - ["dynamic", "testcluster-int-net"]
         pr3:
-          image: seecloud-centos
+          image: centos-from-iso
           flavor: rci-2vcpu-4096ram-20disk
           interfaces:
             - ["dynamic", "testcluster-int-net"]
@@ -120,38 +120,59 @@
       #time qemu-system-x86_64 -boot c -drive file=centos-vda.qcow2,if=virtio,cache=unsafe,discard=on -display vnc=0.0.0.0:1
 
 - script:
-    name: copy-ssh-key-to-slaves
-    interpreter: /bin/bash -x
+    name: prepare-automation-master
+    username: root
     data: |
-        /usr/sbin/ip r
-        ssh-keygen -t rsa -N "" -f .ssh/id_rsa
-        PUBLIC_KEY=$(cat .ssh/id_rsa.pub)
-        cat > /tmp/.node-setup.sh << EOF
-        mkdir /root/.ssh || true
-        echo $PUBLIC_KEY >> /root/.ssh/authorized_keys
-        chmod 600 /root/.ssh/authorized_keys
-        EOF
-        upload_key () {
-        n=0
-        until [ $n -ge 60 ]
-        do
-         n=$[$n+1]
-         sshpass -p mirantis ssh -o StrictHostKeyChecking=no root@${!SRV} sh -xs < /tmp/.node-setup.sh
-         SVNAME=$(echo $SRV | sed 's/^RCI_SERVER_\([[:alnum:]]\+\).*/\1/')
-         ssh -o StrictHostKeyChecking=no root@$SVNAME id
-         if [ $? -eq 0 ]
-         then
-          return
-         fi
-         sleep 10
-        done
-        echo "Timeout waiting for host"
-        exit 255
-        }
-        for SRV in ${!RCI_SERVER_pr*}
-        do
-        upload_key
-        done
+      env
+      /usr/sbin/sysctl -w net.ipv4.ip_forward=1
+      /usr/sbin/ip addr add 10.1.1.1/24 dev eth1
+      /usr/sbin/ip link set eth1 up
+      # add all hostnames to /etc/hosts
+      for S in ${!RCI_SERVER_*}
+      do
+       SVNAME=$(echo $S | sed 's/^RCI_SERVER_\([[:alnum:]]\+\).*/\1/')
+       echo "${!S} $SVNAME" >> /etc/hosts
+      done
+      # create user and add ssh key
+      useradd -m centos
+      mkdir /home/centos/.ssh
+      echo 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDbn5QfmFjSQWlINsFpxNkpsAxUaeBZu2CM3hp7TTPcjMvjfXLEhSHfwtjjKxTzy8JXILJxypb3WcyNCgxzYYrZerejBu0p1V13JWFl6zIZ6aN4xgqBsehWrg2Ly/6L9LxY1MSDYDUbR48Hq6QsnQan9d07R8a/Uv/SdcUPHM05iaKCVOKklRq9z3dGSS9qv43PjB2o12OOLPkxoxR+qf7pdMk0A9NnT/J+ihKIFDjKz3y4X+4Wp8Wic9cP7wq08jbwo5hQV7dCcWgMxLf/T+c5dmfipsApmU7614+nBXf7Hk8nbK0Eaq3n9Qiyv4aTBboKyIvvaC4gWT6JfATLiwsj eye@et' >> /home/centos/.ssh/authorized_keys
+      echo 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQDF13qwUbb+lva8KCNE6IppajmGfF3MJIFhIPD7HYwzeIyI3INlc6nMMOk+r4a6IO3okVxgqRi27boebvUpazw0Jw4T4e1oLQpWCxvhTZkukFsrd9DJiCj07VXluua2ofaCRLCSHVLdjAH4WocmZeCXpZF1ldDeNBeuX0iYJiFBslrG/pmOuCm3IEL7GmoIJjF0Idtwo3tkWcvCUXKvBaVqCHS34Q/KJLAvZc95MLESs/kdnhfxhxbpWrRRFcZn/zIxuuptuTBzWOPd7CnsOLo5PCnuxIfDznDYYzQUJq6OmwMZipepTtymXUvFQiqq7xc/HmNR51vowqwoftgHNxYvoaQgXkneWFnq4Cl9WZaLVs90wNgQewPaKmhL8ia1S2C3Cub0ILsbU/091L7adBeZI87pkfx72HhFQRUOcVprgPAEKKTbEvUQKAQ4rZ6GOIU5Tz/fKf1sXLhiTEAgpGpaTyyTP04vpgP5iY4kcXQHpRsPxg1BQ+93S3KqF2XAdXvrA4eZfAHmGhsAOePdnJQZVf8c4exsgkIGEyM9Wgi2ZWlq7oY0tFJLf+Kq7y23QuC6isIqBBIDN/TtmHRpiWNY4zwmGhzSxBdA6zMVy9PblrU71w1xVBS4KKwUqbWbP06pA7V04sp8kGKz5OmN9Z+rdTQJ2v41SSU71kT6XSFFOQ== vstoiko@mirantis.com' >> /home/centos/.ssh/authorized_keys
+      chown -R centos /home/centos/.ssh
+
+- script:
+    name: prepare-automation-nodes
+    interpreter: /bin/bash -xs
+    data: |
+      # create ssh key and copy to every node
+      ssh-keygen -t rsa -N "" -f .ssh/id_rsa
+      PUBLIC_KEY=$(cat .ssh/id_rsa.pub)
+      cat > /tmp/.node-setup.sh << EOF
+      mkdir /root/.ssh || true
+      echo $PUBLIC_KEY >> /root/.ssh/authorized_keys
+      chmod 600 /root/.ssh/authorized_keys
+      EOF
+      upload_key () {
+      n=0
+      until [ $n -ge 60 ]
+      do
+       n=$[$n+1]
+       sshpass -p mirantis ssh -o StrictHostKeyChecking=no root@${!SRV} sh -xs < /tmp/.node-setup.sh
+       SVNAME=$(echo $SRV | sed 's/^RCI_SERVER_\([[:alnum:]]\+\).*/\1/')
+       ssh -o StrictHostKeyChecking=no root@$SVNAME id
+       if [ $? -eq 0 ]
+       then
+        return
+       fi
+       sleep 10
+      done
+      echo "Timeout waiting for host"
+      exit 255
+      }
+      for SRV in ${!RCI_SERVER_pr*}
+      do
+      upload_key
+      done
 
 - script:
     name: eth1-up
@@ -160,24 +181,12 @@
       sudo /usr/sbin/ip r
 
 - script:
-    name: add-all-servers-to-etc-hosts
-    data: |
-      env
-      rm /tmp/_hosts || true
-      for S in ${!RCI_SERVER_*}
-      do
-       SVNAME=$(echo $S | sed 's/^RCI_SERVER_\([[:alnum:]]\+\).*/\1/')
-       echo "${!S} $SVNAME" >> /tmp/_hosts
-      done
-      sudo sh -c 'cat /tmp/_hosts >> /etc/hosts'
-
-- script:
     name: run-automation
     data: |
       cd $GITHUB_REPO
       utils/inventory-generator --nodes pr1 pr2 pr3
       ansible -i inventory/inventory.cfg -m ping all
-      ansible-playbook -i inventory/bootstrap.cfg bootstrap-runner.yml
+      ansible-playbook -vvv -i inventory/bootstrap.cfg bootstrap-runner.yml
       ansible-playbook -i inventory/inventory.cfg automation-runner.yml --extra-vars "docker_registry_virtual_ip=10.1.1.253"
 
 - job:
