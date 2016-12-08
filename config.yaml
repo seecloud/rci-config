@@ -19,7 +19,7 @@
     ssh:
       default_username: centos
       key_name: rci
-      private_key_path: /home/rci/.ssh/test
+      private_key_path: /rci/store/rci/key
       access_net: "rci-int-net"
     clusters:
       os-image-builder:
@@ -35,7 +35,7 @@
       seecloud_cluster:
         master:
           image: centos-7-1608-ansible
-          flavor: rci-1vcpu-1024ram
+          flavor: m1.medium
           interfaces:
             - ["static", "rci-int-net"]
             - ["dynamic", "testcluster-int-net"]
@@ -75,13 +75,6 @@
       EOF
 
 - script:
-    name: init
-    data: |
-      env
-      sudo apt-get -y update
-      sudo apt-get -y install git
-
-- script:
     name: install-latest-ansible
     data: |
       sudo apt-add-repository -y ppa:ansible/ansible
@@ -117,14 +110,12 @@
       %commit
       %echo done
       EOF
-      gpg --batch --gen-key keygen
-      mv .gnupg /tmp/
+      gpg --batch --gen-key keygen && mv .gnupg /tmp/
       sudo chgrp sudo /dev/kvm
       sudo mv /var/CentOS-7-x86_64-Minimal-1511.iso /tmp/
-      cd $GITHUB_REPO
-      PACKER_LOG=1 packer build -only qemu centos7.json
-      ls -lha /tmp/
-      qemu-img create -f qcow2 centos-vda.qcow2 8G
+      cd $GITHUB_REPO && export PACKER_LOG=1
+      echo | packer build -only qemu centos7.json
+      cd /tmp/ && ls -lha && qemu-img create -f qcow2 centos-vda.qcow2 8G
       time qemu-system-x86_64 -boot d -cdrom centos-image.iso -m 512 -display vnc=0.0.0.0:1 -no-reboot -drive file=centos-vda.qcow2,if=virtio,cache=unsafe,discard=on
       #time qemu-system-x86_64 -boot c -drive file=centos-vda.qcow2,if=virtio,cache=unsafe,discard=on -display vnc=0.0.0.0:1
 
@@ -132,7 +123,7 @@
     name: copy-ssh-key-to-slaves
     interpreter: /bin/bash -x
     data: |
-        /usr/sbin/ip -r
+        /usr/sbin/ip r
         ssh-keygen -t rsa -N "" -f .ssh/id_rsa
         PUBLIC_KEY=$(cat .ssh/id_rsa.pub)
         cat > /tmp/.node-setup.sh << EOF
@@ -165,32 +156,8 @@
 - script:
     name: eth1-up
     data: |
-      if [[ -d /etc/network/interfaces ]]
-      then
-      cat > /tmp/.eth1 <<EOF
-      auto eth1
-      iface eth1 inet dhcp
-      EOF
-      sudo mv /tmp/.eth1 /etc/network/interfaces.d/eth1.cfg
-      else
-      cat > /tmp/.iu <<EOF
-      DEVICE="eth1"
-      BOOTPROTO="dhcp"
-      ONBOOT="yes"
-      TYPE="Ethernet"
-      USERCTL="yes"
-      PEERDNS="no"
-      IPV6INIT="no"
-      PERSISTENT_DHCLIENT="1"
-      EOF
-      sudo mv /tmp/.iu /etc/sysconfig/network-scripts/ifcfg-eth1
-      fi
-      # PEERDNS="no" is't working, so this little trick is needed to save dns
-      sudo cp /etc/resolv.conf /tmp/rc
-      sudo ifup eth1
-      sleep 10
-      sudo cp /tmp/rc /etc/resolv.conf
-      ping -c 3 gnu.org
+      sudo /sbin/dhclient -R subnet-mask eth1
+      sudo /usr/sbin/ip r
 
 - script:
     name: add-all-servers-to-etc-hosts
@@ -211,7 +178,7 @@
       utils/inventory-generator --nodes pr1 pr2 pr3
       ansible -i inventory/inventory.cfg -m ping all
       ansible-playbook -i inventory/bootstrap.cfg bootstrap-runner.yml
-      ansible-playbook -i inventory/inventory.cfg automation-runner.yml
+      ansible-playbook -i inventory/inventory.cfg automation-runner.yml --extra-vars "docker_registry_virtual_ip=10.1.1.253"
 
 - job:
     name: test-automation
