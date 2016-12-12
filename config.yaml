@@ -144,6 +144,8 @@
       /usr/sbin/sysctl -w net.ipv4.ip_forward=1
       /usr/sbin/ip addr add 10.1.1.1/24 dev eth1
       /usr/sbin/ip link set eth1 up
+      /usr/sbin/iptables -t nat -I POSTROUTING -s 10.1.1.0/24 -j MASQUERADE
+      /usr/sbin/iptables -D FORWARD -j REJECT --reject-with icmp-host-prohibited || true
       # add all hostnames to /etc/hosts
       for S in ${!RCI_SERVER_*}
       do
