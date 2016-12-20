@@ -158,6 +158,11 @@
       echo 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDbn5QfmFjSQWlINsFpxNkpsAxUaeBZu2CM3hp7TTPcjMvjfXLEhSHfwtjjKxTzy8JXILJxypb3WcyNCgxzYYrZerejBu0p1V13JWFl6zIZ6aN4xgqBsehWrg2Ly/6L9LxY1MSDYDUbR48Hq6QsnQan9d07R8a/Uv/SdcUPHM05iaKCVOKklRq9z3dGSS9qv43PjB2o12OOLPkxoxR+qf7pdMk0A9NnT/J+ihKIFDjKz3y4X+4Wp8Wic9cP7wq08jbwo5hQV7dCcWgMxLf/T+c5dmfipsApmU7614+nBXf7Hk8nbK0Eaq3n9Qiyv4aTBboKyIvvaC4gWT6JfATLiwsj eye@et' >> /home/centos/.ssh/authorized_keys
       echo 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQDF13qwUbb+lva8KCNE6IppajmGfF3MJIFhIPD7HYwzeIyI3INlc6nMMOk+r4a6IO3okVxgqRi27boebvUpazw0Jw4T4e1oLQpWCxvhTZkukFsrd9DJiCj07VXluua2ofaCRLCSHVLdjAH4WocmZeCXpZF1ldDeNBeuX0iYJiFBslrG/pmOuCm3IEL7GmoIJjF0Idtwo3tkWcvCUXKvBaVqCHS34Q/KJLAvZc95MLESs/kdnhfxhxbpWrRRFcZn/zIxuuptuTBzWOPd7CnsOLo5PCnuxIfDznDYYzQUJq6OmwMZipepTtymXUvFQiqq7xc/HmNR51vowqwoftgHNxYvoaQgXkneWFnq4Cl9WZaLVs90wNgQewPaKmhL8ia1S2C3Cub0ILsbU/091L7adBeZI87pkfx72HhFQRUOcVprgPAEKKTbEvUQKAQ4rZ6GOIU5Tz/fKf1sXLhiTEAgpGpaTyyTP04vpgP5iY4kcXQHpRsPxg1BQ+93S3KqF2XAdXvrA4eZfAHmGhsAOePdnJQZVf8c4exsgkIGEyM9Wgi2ZWlq7oY0tFJLf+Kq7y23QuC6isIqBBIDN/TtmHRpiWNY4zwmGhzSxBdA6zMVy9PblrU71w1xVBS4KKwUqbWbP06pA7V04sp8kGKz5OmN9Z+rdTQJ2v41SSU71kT6XSFFOQ== vstoiko@mirantis.com' >> /home/centos/.ssh/authorized_keys
       chown -R centos /home/centos/.ssh
+      # add user to docker group
+      groupadd docker
+      usermod -a -G docker centos
+      # start docker service
+      service docker-latest restart
 
 - script:
     name: prepare-automation-nodes
