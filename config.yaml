@@ -162,7 +162,17 @@
       # add user to docker group
       groupadd docker
       usermod -a -G docker centos
-      # start docker service
+      # Fix firewalld conflict with docker service
+      grep '^After=*.*firewalld.service' /usr/lib/systemd/system/docker-latest.service
+      if [ $? -eq 1 ]; then
+      sed -i '/^After=/ s/$/ firewalld.service/' /usr/lib/systemd/system/docker-latest.service
+      fi
+      grep 'PartOf=firewalld.service' /usr/lib/systemd/system/docker-latest.service
+      if [ $? -eq 1 ]; then
+      sed -i '/^After=/a PartOf=firewalld.service' /usr/lib/systemd/system/docker-latest.service
+      fi
+      systemctl daemon-reload
+      service firewalld restart
       service docker-latest restart
 
 - script:
