@@ -138,6 +138,7 @@
       #time qemu-system-x86_64 -boot c -drive file=centos-vda.qcow2,if=virtio,cache=unsafe,discard=on -display vnc=0.0.0.0:1
 
 - script:
+    interpreter: /bin/bash -x -s
     name: prepare-automation-master
     username: root
     data: |
@@ -163,6 +164,7 @@
       groupadd docker
       usermod -a -G docker centos
       # Fix firewalld conflict with docker service
+      setenforce 0
       grep '^After=*.*firewalld.service' /usr/lib/systemd/system/docker-latest.service
       if [ $? -eq 1 ]; then
       sed -i '/^After=/ s/$/ firewalld.service/' /usr/lib/systemd/system/docker-latest.service
