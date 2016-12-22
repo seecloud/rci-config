@@ -216,6 +216,8 @@
       utils/inventory-generator --nodes pr1 pr2 pr3
       ansible -i inventory/inventory.cfg -m ping all
       ansible-playbook -vvv -i inventory/bootstrap.cfg bootstrap-runner.yml
+      # add custom pythonpath
+      export PYTHONPATH=/home/centos/seecloud/automation/.oss_venv/lib/python2.7/site-packages:$PYTHONPATH
       ansible-playbook -i inventory/inventory.cfg automation-runner.yml --extra-vars "docker_registry_virtual_ip=10.1.1.253"
 
 - job:
